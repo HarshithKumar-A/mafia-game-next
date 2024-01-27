@@ -1,0 +1,19 @@
+{
+    "id": "any_id",
+    "name": "Next.js PWA - Tutorial",
+    "short_name": "Next PWA",
+    "description": "This next.js app is a PWA.",
+    "icons": [
+      {
+        "src": "./next.png",
+        "sizes": "72x72",
+        "type": "image/png"
+      }
+    ],
+    "theme_color": "#FFFFFF",
+    "background_color": "#FFFFFF",
+    "start_url": "/",
+    "scope": ".",
+    "display": "standalone",
+    "orientation": "portrait"
+  }
