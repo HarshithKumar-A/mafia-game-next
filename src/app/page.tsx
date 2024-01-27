@@ -8,7 +8,7 @@ import { database } from '../intercepter/firebaseApp';
 export default function Home() {
   const router = useRouter();
   const [joinRoom, setJoinRoom] = useState(false);
-  const [roomCode, setRoomCode] = useState([0, 0, 0, 0]);
+  const [roomCode, setRoomCode]: any = useState([0, 0, 0, 0]);
   const inputRefs = [useRef<HTMLInputElement>(), useRef<HTMLInputElement>(), useRef<HTMLInputElement>(), useRef<HTMLInputElement>()];
 
   const [unavailableRoomIds, setUnavailable] = useState<string[]>([]);
@@ -30,7 +30,7 @@ export default function Home() {
 
   const handleCodeEnter = (event: React.ChangeEvent<HTMLInputElement>, input: number) => {
     const value = event.target.value.slice(0, 1); // Restrict to one character
-    setRoomCode((prevRoomCode) => {
+    setRoomCode((prevRoomCode: any) => {
       const newRoomCode = [...prevRoomCode];
       newRoomCode[input - 1] = value;
       return newRoomCode;
@@ -178,7 +178,7 @@ export default function Home() {
           </div>
           <div className='text-white'>ENTER THE ROOM CODE</div>
           <div className='d-flex gap-1'>
-            {inputRefs.map((ref, index) => (
+            {inputRefs.map((ref: any, index) => (
               <input
                 key={index}
                 onChange={(e) => handleCodeEnter(e, index + 1)}
@@ -192,12 +192,12 @@ export default function Home() {
               />
             ))}
           </div>
-          <Button text={'SUBMIT'} action={() => verifyCode()} />
+          <Button text={'SUBMIT'} action={() => verifyCode()} disabled={false}/>
         </>
       ) : (
         <>
-          <Button text={'CREATE ROOM'} action={() => createRoom()} />
-          <Button action={() => setJoinRoom(true)} text={'JOIN ROOM'} />
+          <Button text={'CREATE ROOM'} action={() => createRoom()} disabled={false}/>
+          <Button action={() => setJoinRoom(true)} text={'JOIN ROOM'} disabled={false}/>
         </>
       )}
     </div>

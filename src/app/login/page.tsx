@@ -62,7 +62,7 @@ const Login = () => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
             /> */}
-            <Button text={'LOGIN'} action={handleNextClick} />
+            <Button text={'LOGIN'} action={handleNextClick} disabled={false}/>
         </div>
     );
 };

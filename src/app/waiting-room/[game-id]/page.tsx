@@ -24,7 +24,7 @@ const Waiting = ({ params }: { params: { 'game-id': string } }) => {
             if (!!data) {
                 setRoomId(roomId);
                 setRoomData(data);
-                const playerData = data?.players.find((player) => player.name === JSON.parse(localStorage.getItem('v1:userInfo')!).displayName);
+                const playerData = data?.players.find((player: any) => player.name === JSON.parse(localStorage.getItem('v1:userInfo')!).displayName);
                 setPlayerData(playerData);
                 console.log(data, roomData, playerData);
                 console.log(data.gameStatus.status);

@@ -105,6 +105,8 @@ export default function Game({ params }: { params: { 'game-id': string } }) {
       const data = snapshot.val();
       if (!!data) {
         setStatus(data.gameStatus);
+        console.log(data);
+        
         setRoomData(data);
         const playerData = data?.players.find((player: any) => player.name === JSON.parse(localStorage.getItem('v1:userInfo')!).displayName);
         setUserInfo(playerData);
