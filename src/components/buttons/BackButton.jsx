@@ -1,10 +1,11 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 
-export const BackButton = ({ url }) => {
+export const BackButton = ({ url, action }) => {
     const router = useRouter();
 
     const goBack = () => {
+        action();
         router.push(url);
     };
 

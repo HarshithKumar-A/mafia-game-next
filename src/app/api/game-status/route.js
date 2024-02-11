@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { database } from "@/intercepter/firebaseApp";
 import { set, ref } from "firebase/database";
 
+// this end point startes gmae as per current implementation
 export async function POST(req) {
     try {
         const data = await req.json();
@@ -36,7 +37,7 @@ async function setGameStatus(roomData) {
                 {
                     ...roomData.gameStatus,
                     round_no: 1,
-                    status: 'morning',
+                    status: 'reveal',
                     isDayTime: true,
                     dayChat: [
                         { sender: 'sample', message: 'message sample' }
@@ -45,7 +46,13 @@ async function setGameStatus(roomData) {
                 },
                 players: assignRandomRoles(roomData.players)
             }
-        );
+        ).then(() => {
+            setTimeout(() => {
+                set(ref(database, 'room-id/' + roomData.gameStatus.code + '/gameStatus/status'), 'morning')
+            }, 10000)
+        }).catch((error) => {
+            console.log(error);
+        });;
         // console.log();
         return '';
     } catch (error) {

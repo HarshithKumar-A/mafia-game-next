@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { BackButton } from '@/components/buttons/BackButton';
 import Button from '@/components/buttons/button';
 import { database } from '@/intercepter/firebaseApp';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, onValue, onDisconnect } from 'firebase/database';
 import { useRouter } from 'next/navigation';
 
 const Waiting = ({ params }: { params: { 'game-id': string } }) => {
@@ -19,15 +19,16 @@ const Waiting = ({ params }: { params: { 'game-id': string } }) => {
         }
         const cartRef = ref(database, 'room-id/' + roomId);
         console.log(database + 'room-id/' + roomId);
-        onValue(cartRef, (snapshot) => {
+        const unsubscribe = onValue(cartRef, (snapshot) => {
             const data = snapshot.val();
             if (!!data) {
                 setRoomId(roomId);
                 setRoomData(data);
-                const playerData = data?.players.find((player: any) => player.name === JSON.parse(localStorage.getItem('v1:userInfo')!).displayName);
+                const playerData = data?.players?.find((player: any) => player.email === JSON.parse(localStorage.getItem('v1:userInfo')!).email);
+                onDisconnect(ref(database, 'room-id/' + roomId + '/players/' + playerData.index + '/isActive/')).set(false);
                 setPlayerData(playerData);
-                console.log(data, roomData, playerData);
-                console.log(data.gameStatus.status);
+                console.log('dying');
+                if (!playerData.isActive) { set(ref(database, 'room-id/' + roomId + '/players/' + playerData.index + '/isActive/'), true) };
                 if (data.gameStatus?.status !== 'waiting') {
                     router.push(`/game/${params['game-id']}`);
                 }
@@ -35,11 +36,15 @@ const Waiting = ({ params }: { params: { 'game-id': string } }) => {
                 console.log('Data not found');
             }
         });
+        return () => {
+            unsubscribe();
+        };
     }, []);
 
     function onActionButtonClick() {
         console.log('here');
         if (playerData.host) {
+            // this end point starts gmae as per current implementation
             fetch('/api/game-status', {
                 method: 'POST',
                 headers: {
@@ -49,7 +54,9 @@ const Waiting = ({ params }: { params: { 'game-id': string } }) => {
             })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
+                        return response.text().then(errorText => {
+                            throw new Error(errorText);
+                        });
                     }
                     return response.json();
                 })
@@ -58,12 +65,12 @@ const Waiting = ({ params }: { params: { 'game-id': string } }) => {
                     router.push(`/game/${params['game-id']}`);
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    console.log(error.message);
+                    alert(JSON.parse(error.message)?.error || 'something went wrong');
                 });
-
         } else {
             // Logic for non-host players
-            const userIndex = roomData.players.findIndex((player) => player.name === playerData.name);
+            const userIndex = roomData.players.findIndex((player) => player.email === playerData.email);
             if (userIndex !== -1) {
                 roomData.players[userIndex].isReady = !roomData.players[userIndex].isReady;
             }
@@ -81,9 +88,17 @@ const Waiting = ({ params }: { params: { 'game-id': string } }) => {
         }
     }
 
+    function deleteUser() {
+        set(ref(database, 'room-id/' + roomId + '/players/' + playerData.index + '/isActive/'), false).then(() => {
+            console.log('compleated');
+        }).catch((error) => {
+            console.log(error);
+        });
+    }
+
     return (
         <>
-            <BackButton url={'/'} />
+            <BackButton url={'/'} action={() => { deleteUser() }} />
             <div className='d-flex flex-column gap-4 w-100 h-100 align-items-center justify-content-center'>
                 <span className='text-white fs-1'>ROOM</span>
                 <div className='d-flex gap-2 opacity-50'>
@@ -94,11 +109,11 @@ const Waiting = ({ params }: { params: { 'game-id': string } }) => {
                     ))}
                 </div>
                 <div className='canvas bg-white card card-bg height-card-button p-4 gap-1 overflow-auto'>
-                    {roomData.players.map((player, index) => (
-                        <span key={index} className='py-1 px-3 bg-white card border-0 d-flex flex-row justify-content-between'>
-                            <span className='text-uppercase'>{player.name}</span>
+                    {roomData.players?.map((player, index) => (
+                        <span key={index} className={`py-1 px-3 bg-white card border-0 d-flex flex-row justify-content-between ${!player.isActive && 'disabled'}`}>
+                            <span className='text-uppercase'>{player?.name || 'disconnected'}</span>
                             <span className='action-btn'>
-                                {player.isReady ? (
+                                {player?.isReady ? (
                                     <span className='text-success cursor-pointer'>READY</span>
                                 ) : (
                                     <span className='cross-icon cursor-pointer'></span>
@@ -107,11 +122,14 @@ const Waiting = ({ params }: { params: { 'game-id': string } }) => {
                         </span>
                     ))}
                 </div>
-                <Button
-                    action={() => onActionButtonClick()}
-                    disabled={!!playerData?.host && roomData.players.some((player) => !player.isReady)}
-                    text={playerData?.host ? 'START' : playerData?.isReady ? 'NOT READY' : 'READY'}
-                />
+                <div className='tooltip-custom'>
+                    {playerData?.host && <div className="tooltiptext"> minimum 4 players needed</div>}
+                    <Button
+                        action={() => onActionButtonClick()}
+                        disabled={!!playerData?.host && (roomData.players.filter((player) => player.isActive).length < 4 || roomData.players.filter((player) => player.isActive).some((player) => !player.isReady))}
+                        text={playerData?.host ? 'START' : playerData?.isReady ? 'NOT READY' : 'READY'}
+                    />
+                </div>
             </div>
         </>
     );

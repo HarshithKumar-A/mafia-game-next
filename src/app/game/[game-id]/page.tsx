@@ -6,7 +6,7 @@ import Chat from '@/components/chat/Chat';
 import Button from '@/components/buttons/button';
 import { useRouter } from 'next/navigation';
 import { database } from '@/intercepter/firebaseApp';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, onValue, onDisconnect } from 'firebase/database';
 
 interface GameStatus {
   code: number;
@@ -26,6 +26,8 @@ interface Player {
   role: string;
   subrole?: string;
   isVoted?: boolean;
+  index?: number;
+  email: string;
 }
 
 interface RoomData {
@@ -33,63 +35,17 @@ interface RoomData {
     code: string;
     round_no: number;
     status: string;
+    dayChat: any;
   };
   players: Player[];
 }
 
-interface UserInfo {
-  role: string;
-}
 
 export default function Game({ params }: { params: { 'game-id': string } }) {
   const router = useRouter();
-  const [gameStatus, setStatus] = useState<GameStatus>({
-    code: 5155,
-    round_no: 1,
-    status: 'morning',
-    isDayTime: true,
-    dayChat: [],
-    mafiaChat: [
-      { sender: 'karthik', message: 'rasaathi unnai pakath anenjam kathadi pladuthe' },
-      { sender: 'Harshith', message: 'rasaathi unnai pakath anenjam kathadi pladuthe' },
-      // ... other chat messages
-    ],
-  });
-
-  const [roomData, setRoomData] = useState<RoomData>({
-    gameStaus: {
-      code: '5155',
-      round_no: 1,
-      status: 'waiting',
-    },
-    players: [
-      {
-        host: true,
-        isActive: true,
-        isReady: true,
-        name: 'Harshith',
-        score: 0,
-        role: 'villeger',
-        subrole: 'doctor',
-        isVoted: true,
-      },
-      {
-        host: true,
-        isActive: true,
-        isReady: true,
-        name: 'Harshith',
-        score: 0,
-        role: '',
-        subrole: 'doctor',
-        isVoted: false,
-      },
-      // ... other players
-    ],
-  });
-
-  const [userInfo, setUserInfo] = useState<UserInfo>({
-    role: 'dictector',
-  });
+  const [gameStatus, setStatus] = useState<GameStatus>();
+  const [roomData, setRoomData] = useState<RoomData>();
+  const [userInfo, setUserInfo] = useState<Player>();
 
   const [tab, setTab] = useState<number>(1);
 
@@ -100,29 +56,49 @@ export default function Game({ params }: { params: { 'game-id': string } }) {
       router.push('/');
     }
     const cartRef = ref(database, 'room-id/' + roomId);
-    console.log(database + 'room-id/' + roomId);
-    onValue(cartRef, (snapshot) => {
+    const unsubscribe = onValue(cartRef, (snapshot) => {
       const data = snapshot.val();
       if (!!data) {
         setStatus(data.gameStatus);
         console.log(data);
-        
         setRoomData(data);
         const playerData = data?.players.find((player: any) => player.name === JSON.parse(localStorage.getItem('v1:userInfo')!).displayName);
         setUserInfo(playerData);
+        onDisconnect(ref(database, 'room-id/' + roomId + '/players/' + playerData.index + '/isActive/')).set(false);
       } else {
         console.log('Data not found');
       }
     });
-  }, [])
+    return () => {
+      unsubscribe();
+  };
+  }, []);
+
+  function deleteUser() {
+    set(ref(database, 'room-id/' + gameStatus?.code + '/players/' + userInfo?.index + '/isActive/'), false).then(() => {
+      console.log('compleated');
+    }).catch((error) => {
+      console.log(error);
+    });
+  }
+
+  function revelRole() {
+    if (userInfo?.role === "mafia") {
+      const otherMafias = roomData?.players.filter(plyr => (plyr.role === 'mafial' && plyr.email !== userInfo.email))?.map((plye) => plye.name).join(', ');
+      return otherMafias?.length ? otherMafias + 'And you are mafias' : 'You are a mafia'
+    } else {
+      return `You are a ${userInfo?.subrole === "townspeople" ? 'Villeger' : userInfo?.subrole}`;
+    }
+  }
 
   return (
     <>
-      <BackButton url={'/'} />
+      <BackButton url={'/'} action={() => { deleteUser() }} />
       <div className='d-flex flex-column gap-4 w-100 h-100  align-items-center justify-content-center'>
-        <span className='text-white fs-1'>ROUND {gameStatus.round_no}({gameStatus.isDayTime ? 'MORNING' : 'NIGHT'})</span>
+        <span className='text-white fs-1'>{gameStatus?.code}</span>
+        <span className='text-white fs-1'>ROUND {gameStatus?.round_no}({gameStatus?.isDayTime ? 'MORNING' : 'NIGHT'})</span>
         {(() => {
-          switch (gameStatus.status) {
+          switch (gameStatus?.status) {
             case 'reveal':
               return (
                 <>
@@ -130,13 +106,12 @@ export default function Game({ params }: { params: { 'game-id': string } }) {
                     <span className='border-radius-15 card font-10 text-center flex-1 py-1'>REVEAL ROLE</span>
                   </div>
                   <div className="fs-3 canvas bg-white card card-bg height-card-button p-4 gap-1 overflow-auto d-flex align-items-center justify-content-center">
-                    {/* Replace this with your reveal role content */}
-                    you and karthiks are mafia
+                    {revelRole()}
                   </div>
                 </>
               );
             case 'secreate-operation':
-              switch (userInfo.role) {
+              switch (userInfo?.subrole) {
                 case 'villager':
                   return (
                     <>
@@ -155,12 +130,11 @@ export default function Game({ params }: { params: { 'game-id': string } }) {
                       </div>
                       {tab === 1 ?
                         <div className="fs-3 canvas bg-white card card-bg height-card-button gap-1 overflow-auto d-flex align-items-center justify-content-center">
-                          <Chat chatHistory={gameStatus.mafiaChat} />
+                          <Chat chatHistory={gameStatus.mafiaChat} userName={''} chatType={'mafiaChat'} roomId={gameStatus?.code} />
                         </div> :
-
                         <>
                           <div className="canvas bg-white card card-bg height-card-button p-2">
-                            {roomData.players.map((player, index) => (
+                            {roomData?.players.map((player, index) => (
                               <span key={index} className='py-1 px-3 bg-white card border-0 d-flex flex-row justify-content-between'>
                                 <span className='text-uppercase'>{player.name}</span>
                                 <span className="action-btn" style={{ height: '26px' }}>
@@ -181,7 +155,7 @@ export default function Game({ params }: { params: { 'game-id': string } }) {
                         <span onClick={() => { setTab(1) }} className={`border-radius-15 card font-10 text-center flex-1 py-1 cursor-pointer`}>protect one</span>
                       </div>
                       <div className="canvas bg-white card card-bg height-card-button p-2  gap-1">
-                        {roomData.players.map((player, index) => (
+                        {roomData?.players.map((player, index) => (
                           <span key={index} className='py-1 px-3 bg-white card border-0 d-flex flex-row justify-content-between'>
                             <span className='text-uppercase'>{player.name}</span>
                             <span className="action-btn" style={{ height: '26px' }}>
@@ -200,7 +174,7 @@ export default function Game({ params }: { params: { 'game-id': string } }) {
                         <span onClick={() => { setTab(1) }} className={`border-radius-15 card font-10 text-center flex-1 py-1 cursor-pointer`}>reveal role</span>
                       </div>
                       <div className="canvas bg-white card card-bg height-card-button p-2 gap-1">
-                        {roomData.players.map((player, index) => (
+                        {roomData?.players.map((player, index) => (
                           <span key={index} className='py-1 px-3 bg-white card border-0 d-flex flex-row justify-content-between'>
                             <span className='text-uppercase'>{player.name}</span>
                             {player.role ? <span className='text-success'>{player.role}</span> : <span className="action-btn" style={{ height: '26px' }}>
@@ -239,13 +213,13 @@ export default function Game({ params }: { params: { 'game-id': string } }) {
                       case 1:
                         return (
                           <div className="fs-3 canvas bg-white card card-bg height-card-button gap-1 overflow-auto d-flex align-items-center justify-content-center">
-                            <Chat chatHistory={gameStatus.dayChat} />
+                            <Chat chatHistory={gameStatus.dayChat} userName={''} chatType={'dayChat'} roomId={gameStatus?.code} />
                           </div>)
                       case 2:
                         return (
                           <>
                             <div className="canvas bg-white card card-bg height-card-button p-2">
-                              {roomData.players.map((player, index) => (
+                              {roomData?.players.map((player, index) => (
                                 <span key={index} className='py-1 px-3 bg-white card border-0 d-flex flex-row justify-content-between'>
                                   <span className='text-uppercase'>{player.name}</span>
                                   <span className="action-btn" style={{ height: '26px' }}>
@@ -259,7 +233,7 @@ export default function Game({ params }: { params: { 'game-id': string } }) {
                       case 3:
                         return (
                           <div className="canvas bg-white card card-bg height-card-button p-2 gap-1">
-                            {roomData.players.map((player, index) => (
+                            {roomData?.players.map((player, index) => (
                               <span key={index} className='py-1 px-3 bg-white card border-0 d-flex flex-row justify-content-between'>
                                 <span className='text-uppercase'>{player.name}</span>
                                 <span className="action-btn">

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Button from '../components/buttons/button';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, onValue, onDisconnect } from 'firebase/database';
 import { database } from '../intercepter/firebaseApp';
 
 export default function Home() {
@@ -97,6 +97,8 @@ export default function Home() {
                 isActive: true,
                 isReady: true,
                 host: true,
+                index: 0,
+                email: JSON.parse(localStorage.getItem('v1:userInfo')!).email
               },
             ],
             gameStatus: {
@@ -132,31 +134,38 @@ export default function Home() {
       }
       const data = snapshot.val();
       if (!!data) {
-        console.log(data);
         localStorage.setItem('v1:gameInfo', JSON.stringify({ gameId: roomId }));
-        set(
-          ref(database, 'room-id/' + roomId),
-          {
-            ...data,
-            players: [
-              ...data.players,
-              {
-                name: JSON.parse(localStorage.getItem('v1:userInfo')!).displayName,
-                score: 0,
-                role: null,
-                isActive: true,
-                isReady: false,
-                host: false,
-              },
-            ],
-          }
-        )
-          .then(() => {
+        // If player alreadyexist in the grup
+        const playerData = data?.players?.find((player: any) => player.email === JSON.parse(localStorage.getItem('v1:userInfo')!).email);
+        if (playerData) {
+          set(ref(database, 'room-id/' + roomId + '/players/' + playerData.index + '/isActive/'), true).then(() => {
             router.push('/waiting-room/' + roomId);
           })
-          .catch((error) => {
-            console.log(error);
-          });
+        } else {
+          set(
+            ref(database, 'room-id/' + roomId + '/players/'), 
+            [
+                ...data.players,
+                {
+                  name: JSON.parse(localStorage.getItem('v1:userInfo')!).displayName,
+                  score: 0,
+                  role: null,
+                  isActive: true,
+                  isReady: false,
+                  host: false,
+                  index: data.players.length,
+                  email: JSON.parse(localStorage.getItem('v1:userInfo')!).email
+                },
+              ],
+          )
+            .then(() => {
+              router.push('/waiting-room/' + roomId);
+            })
+            .catch((error) => {
+              console.log(error);
+            });
+        }
+
       } else {
         console.log('Data not found');
       }
